@@ -159,69 +159,58 @@ $("file-picker").onchange = function(e) {
 $("btn-print").onclick = function() { window.print(); };
 
 function pack(ps, W, H, rot) {
- var shelves = [];
- var currentShelf = { x: 0, y: 0, w: 0, h: 0, maxH: 0, put: [] };
- shelves.push(currentShelf);
-
+ var plates = [];
  var sortedPs = ps.slice().sort(function(a, b) { return Math.max(b.w, b.h) - Math.max(a.w, a.h); });
 
- for (var i = 0; i < sortedPs.length; i++) {
-  var p = sortedPs[i];
-  var placed = false;
+ for (var n = 0; n < sortedPs.length; n++) {
+  var p = sortedPs[n], placed = false;
 
-  for (var r = 0; r < (rot ? 2 : 1); r++) {
-   var pw = r ? p.h : p.w;
-   var ph = r ? p.w : p.h;
+  // 1. Intentar ubicar en los espacios libres acumulados de CUALQUIER placa ya abierta (incluyendo retazos anteriores)
+  for (var a = 0; a < plates.length; a++) {
+   var fr = plates[a].free;
+   for (var b = 0; b < fr.length; b++) {
+    var f = fr[b];
+    for (var r = 0; r < (rot ? 2 : 1); r++) {
+     var w = r ? p.h : p.w, h = r ? p.w : p.h;
+     if (w <= f.w + 1e-9 && h <= f.h + 1e-9) {
+      plates[a].put.push({ x: f.x, y: f.y, w: w, h: h, p: p, r: r, isRemnant: plates[a].isRemnant || a > 0 });
+      plates[a].free.splice(b, 1);
 
-   for (var s = 0; s < shelves.length; s++) {
-    var sh = shelves[s];
-    if (sh.x + pw <= W && sh.y + ph <= H) {
-     var extraH = (sh.put.length === 0) ? ph : Math.max(sh.maxH, ph) - sh.maxH;
-     if (sh.y + sh.maxH + extraH <= H || sh.put.length > 0) {
-      sh.put.push({ x: sh.x, y: sh.y, w: pw, h: ph, p: p, r: r });
-      sh.x += pw;
-      if (ph > sh.maxH) sh.maxH = ph;
+      // Partición de retazos restantes
+      var rw = f.w - w, rh = f.h - h;
+      if (rw > 0.01) plates[a].free.push({ x: f.x + w, y: f.y, w: rw, h: f.h });
+      if (rh > 0.01) plates[a].free.push({ x: f.x, y: f.y + h, w: f.w, h: rh });
+
       placed = true;
       break;
      }
     }
+    if (placed) break;
    }
    if (placed) break;
-
-   var lastShelf = shelves[shelves.length - 1];
-   var nextY = lastShelf.y + lastShelf.maxH;
-   if (nextY + ph <= H && pw <= W) {
-    var newShelf = { x: pw, y: nextY, w: W, h: H - nextY, maxH: ph, put: [{ x: 0, y: nextY, w: pw, h: ph, p: p, r: r }] };
-    shelves.push(newShelf);
-    placed = true;
-    break;
-   }
   }
-  if (!placed) return null;
+
+  // 2. Si no entra en ninguna placa ni retazo existente, abrir una placa nueva entera
+  if (!placed) {
+   var okr = null;
+   for (var r2 = 0; r2 < (rot ? 2 : 1); r2++) {
+    var w2 = r2 ? p.h : p.w, h2 = r2 ? p.w : p.h;
+    if (w2 <= W && h2 <= H) { okr = { w: w2, h: h2, r: r2 }; break; }
+   }
+   if (!okr) return null;
+
+   var newPlate = { free: [{ x: 0, y: 0, w: W, h: H }], put: [], isRemnant: false };
+   var f2 = newPlate.free.shift();
+   newPlate.put.push({ x: f2.x, y: f2.y, w: okr.w, h: okr.h, p: p, r: okr.r });
+
+   var rw2 = f2.w - okr.w, rh2 = f2.h - okr.h;
+   if (rw2 > 0.01) newPlate.free.push({ x: f2.x + okr.w, y: f2.y, w: rw2, h: f2.h });
+   if (rh2 > 0.01) newPlate.free.push({ x: f2.x, y: f2.y + okr.h, w: f2.w, h: rh2 });
+
+   plates.push(newPlate);
+  }
  }
-
- var pl = [];
- var allPut = [];
- shelves.forEach(function(sh) {
-  sh.put.forEach(function(item) {
-   allPut.push(item);
-  });
- });
-
- pl.push({ free: [{ x: 0, y: 0, w: W, h: H }], put: allPut });
- 
- var maxUsedX = 0, maxUsedY = 0;
- allPut.forEach(function(q) {
-  if (q.x + q.w > maxUsedX) maxUsedX = q.x + q.w;
-  if (q.y + q.h > maxUsedY) maxUsedY = q.y + q.h;
- });
-
- var freeSpaces = [];
- if (maxUsedX < W) freeSpaces.push({ x: maxUsedX, y: 0, w: W - maxUsedX, h: H });
- if (maxUsedY < H) freeSpaces.push({ x: 0, y: maxUsedY, w: W, h: H - maxUsedY });
- pl[0].free = freeSpaces;
-
- return pl;
+ return plates;
 }
 
 function solve(ps,W,H,rot){
@@ -254,7 +243,7 @@ function go(){
  });
  if(bad.length){out.innerHTML='<div class="err">No entran en la placa: '+bad.join(", ")+'. Revisá esas medidas.</div>';return}
  if(!ps.length){out.innerHTML='<div class="err">Agregá al menos una pieza con cantidad y medidas.</div>';return}
- out.innerHTML='<div class="sum">Calculando la distribución compacta…</div>';
+ out.innerHTML='<div class="sum">Calculando aprovechamiento con retazos…</div>';
  setTimeout(function(){
   var r=solve(ps,W+K,H+K,rot);
   if(!r){out.innerHTML='<div class="err">No se pudo armar un plan. Revisá las medidas.</div>';return}
