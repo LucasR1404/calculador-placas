@@ -31,7 +31,6 @@ svg{width:100%;height:auto;display:block;border:1px solid var(--bd);border-radiu
 .top-acts{display:flex;gap:8px;margin-bottom:14px}
 .top-acts button{flex:1;font-size:13px;padding:7px}
 .remnant-tag{background:var(--bg);border:1px dashed var(--bd);padding:6px 10px;border-radius:6px;font-size:12px;margin-top:6px;color:var(--mu)}
-.badge-remnant{background:#fffae6;color:#8a6d3b;border:1px solid #faebcc;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;display:inline-block;margin-bottom:4px}
 @media print {
   body { background: #fff; color: #000; max-width: 100%; padding: 0; }
   .card, .top-acts, button, .acts, h1 { display: none !important; }
@@ -81,7 +80,7 @@ try {
     if (cfg.rot !== undefined) $("rot").checked = cfg.rot;
   }
   var s = localStorage.getItem("cp_items");
-  if (s) { var p = JSON.parse(s); if (Array.isArray(p) && p.length) items = p; }
+  if (s) { var p = JSON.parse(s); if (Array.isArray(p)&&p.length) items = p; }
 } catch(e) {}
 
 var $=function(i){return document.getElementById(i)};
@@ -159,7 +158,7 @@ $("file-picker").onchange = function(e) {
 
 $("btn-print").onclick = function() { window.print(); };
 
-// Algoritmo con Banco Acumulativo de Retazos (Reutilización real entre placas)
+// Algoritmo con prioridad estricta de consumo de retazos previos
 function pack(ps, W, H, rot) {
  var plates = [];
  var sortedPs = ps.slice().sort(function(a, b) { return Math.max(b.w, b.h) - Math.max(a.w, a.h); });
@@ -167,7 +166,7 @@ function pack(ps, W, H, rot) {
  for (var n = 0; n < sortedPs.length; n++) {
   var p = sortedPs[n], placed = false;
 
-  // 1. Buscar si la pieza entra en los espacios libres de CUALQUIER placa existente (incluyendo retazos previos)
+  // 1. Priorizar buscar espacio en placas anteriores (aprovechando retazos ya generados)
   for (var a = 0; a < plates.length; a++) {
    var fr = plates[a].free;
    for (var b = 0; b < fr.length; b++) {
@@ -175,10 +174,9 @@ function pack(ps, W, H, rot) {
     for (var r = 0; r < (rot ? 2 : 1); r++) {
      var w = r ? p.h : p.w, h = r ? p.w : p.h;
      if (w <= f.w + 1e-9 && h <= f.h + 1e-9) {
-      plates[a].put.push({ x: f.x, y: f.y, w: w, h: h, p: p, r: r, fromRemnant: (a > 0 || plates[a].isFromRemnant) });
+      plates[a].put.push({ x: f.x, y: f.y, w: w, h: h, p: p, r: r, fromRemnant: (a > 0) });
       plates[a].free.splice(b, 1);
 
-      // Partición de retazos
       var rw = f.w - w, rh = f.h - h;
       if (rw > 0.01) plates[a].free.push({ x: f.x + w, y: f.y, w: rw, h: h });
       if (rh > 0.01) plates[a].free.push({ x: f.x, y: f.y + h, w: f.w, h: rh });
@@ -192,7 +190,7 @@ function pack(ps, W, H, rot) {
    if (placed) break;
   }
 
-  // 2. Si no entra en ningún retazo existente, abrir una placa nueva entera
+  // 2. Si no entra en ningún retazo existente, abrir placa nueva
   if (!placed) {
    var okr = null;
    for (var r2 = 0; r2 < (rot ? 2 : 1); r2++) {
@@ -201,7 +199,7 @@ function pack(ps, W, H, rot) {
    }
    if (!okr) return null;
 
-   var newPlate = { free: [{ x: 0, y: 0, w: W, h: H }], put: [], isFromRemnant: false };
+   var newPlate = { free: [{ x: 0, y: 0, w: W, h: H }], put: [] };
    var f2 = newPlate.free.shift();
    newPlate.put.push({ x: f2.x, y: f2.y, w: okr.w, h: okr.h, p: p, r: okr.r, fromRemnant: false });
 
@@ -245,7 +243,7 @@ function go(){
  });
  if(bad.length){out.innerHTML='<div class="err">No entran en la placa: '+bad.join(", ")+'. Revisá esas medidas.</div>';return}
  if(!ps.length){out.innerHTML='<div class="err">Agregá al menos una pieza con cantidad y medidas.</div>';return}
- out.innerHTML='<div class="sum">Calculando reutilización de retazos…</div>';
+ out.innerHTML='<div class="sum">Calculando optimización de rezagos…</div>';
  setTimeout(function(){
   var r=solve(ps,W,H,rot);
   if(!r){out.innerHTML='<div class="err">No se pudo armar un plan. Revisá las medidas.</div>';return}
@@ -262,7 +260,7 @@ function go(){
     var w=q.w,hh=q.h,lab=(q.r?q.p.oh:q.p.ow)+"×"+(q.r?q.p.ow:q.p.oh);
     var f=Math.min(fs,w/(lab.length*0.62),hh*0.6);
     
-    // Si la pieza se colocó utilizando un retazo acumulado, se pinta con un indicador visual especial en el plano
+    // Si la pieza sale de un retazo acumulado de la placa anterior, se destaca visualmente
     var fillColor = q.fromRemnant ? "#d1e7dd" : col(q.p);
     var strokeColor = q.fromRemnant ? "#0f5132" : "#222";
     
@@ -275,7 +273,7 @@ function go(){
    if(validRemnants.length > 0){
     h+='<div class="remnant-tag"><b>Sobrantes útiles / Retazos rescatables para el siguiente corte:</b><br>';
     validRemnants.forEach(function(rem){
-     h+='• Rectángulo de <b>'+Math.round(rem.w*10)/10+' × '+Math.round(rem.h*10)/10+' cm</b> (Disponible para la siguiente placa)<br>';
+     h+='• Rectángulo de <b>'+Math.round(rem.w*10)/10+' × '+Math.round(rem.h*10)/10+' cm</b> (Guardar rezago para usar en la siguiente placa)<br>';
     });
     h+='</div>';
    }
