@@ -158,37 +158,69 @@ $("file-picker").onchange = function(e) {
 
 $("btn-print").onclick = function() { window.print(); };
 
-function pack(ps,W,H,rot){
- var pl=[];
- for(var n=0;n<ps.length;n++){
-  var p=ps[n],best=null;
-  for(var a=0;a<pl.length;a++){var fr=pl[a].free;
-   for(var b=0;b<fr.length;b++){var f=fr[b];
-    for(var r=0;r<(rot?2:1);r++){
-     var w=r?p.h:p.w,h=r?p.w:p.h;
-     if(w<=f.w+1e-9&&h<=f.h+1e-9){
-      var remW = f.w - w, remH = f.h - h;
-      var sc = Math.min(remW, remH) * 100 + Math.max(remW, remH);
-      if(!best||sc<best.sc)best={sc:sc,a:a,b:b,w:w,h:h,r:r}
+function pack(ps, W, H, rot) {
+ var shelves = [];
+ var currentShelf = { x: 0, y: 0, w: 0, h: 0, maxH: 0, put: [] };
+ shelves.push(currentShelf);
+
+ var sortedPs = ps.slice().sort(function(a, b) { return Math.max(b.w, b.h) - Math.max(a.w, a.h); });
+
+ for (var i = 0; i < sortedPs.length; i++) {
+  var p = sortedPs[i];
+  var placed = false;
+
+  for (var r = 0; r < (rot ? 2 : 1); r++) {
+   var pw = r ? p.h : p.w;
+   var ph = r ? p.w : p.h;
+
+   for (var s = 0; s < shelves.length; s++) {
+    var sh = shelves[s];
+    if (sh.x + pw <= W && sh.y + ph <= H) {
+     var extraH = (sh.put.length === 0) ? ph : Math.max(sh.maxH, ph) - sh.maxH;
+     if (sh.y + sh.maxH + extraH <= H || sh.put.length > 0) {
+      sh.put.push({ x: sh.x, y: sh.y, w: pw, h: ph, p: p, r: r });
+      sh.x += pw;
+      if (ph > sh.maxH) sh.maxH = ph;
+      placed = true;
+      break;
      }
     }
    }
+   if (placed) break;
+
+   var lastShelf = shelves[shelves.length - 1];
+   var nextY = lastShelf.y + lastShelf.maxH;
+   if (nextY + ph <= H && pw <= W) {
+    var newShelf = { x: pw, y: nextY, w: W, h: H - nextY, maxH: ph, put: [{ x: 0, y: nextY, w: pw, h: ph, p: p, r: r }] };
+    shelves.push(newShelf);
+    placed = true;
+    break;
+   }
   }
-  if(!best){
-   var okr=null;
-   for(var r2=0;r2<(rot?2:1);r2++){var w2=r2?p.h:p.w,h2=r2?p.w:p.h;if(w2<=W&&h2<=H){okr={w:w2,h:h2,r:r2};break}}
-   if(!okr)return null;
-   pl.push({free:[{x:0,y:0,w:W,h:H}],put:[]});
-   best={a:pl.length-1,b:0,w:okr.w,h:okr.h,r:okr.r};
-  }
-  var P=pl[best.a],f2=P.free.splice(best.b,1)[0];
-  P.put.push({x:f2.x,y:f2.y,w:best.w,h:best.h,p:p});
-  var rw=f2.w-best.w,rh=f2.h-best.h,A,B;
-  if(rw<rh){A={x:f2.x+best.w,y:f2.y,w:rw,h:best.h};B={x:f2.x,y:f2.y+best.h,w:f2.w,h:rh}}
-  else{A={x:f2.x+best.w,y:f2.y,w:rw,h:best.h};B={x:f2.x,y:f2.y+best.h,w:best.w,h:rh}}
-  if(A.w>0.01&&A.h>0.01)P.free.push(A);
-  if(B.w>0.01&&B.h>0.01)P.free.push(B);
+  if (!placed) return null;
  }
+
+ var pl = [];
+ var allPut = [];
+ shelves.forEach(function(sh) {
+  sh.put.forEach(function(item) {
+   allPut.push(item);
+  });
+ });
+
+ pl.push({ free: [{ x: 0, y: 0, w: W, h: H }], put: allPut });
+ 
+ var maxUsedX = 0, maxUsedY = 0;
+ allPut.forEach(function(q) {
+  if (q.x + q.w > maxUsedX) maxUsedX = q.x + q.w;
+  if (q.y + q.h > maxUsedY) maxUsedY = q.y + q.h;
+ });
+
+ var freeSpaces = [];
+ if (maxUsedX < W) freeSpaces.push({ x: maxUsedX, y: 0, w: W - maxUsedX, h: H });
+ if (maxUsedY < H) freeSpaces.push({ x: 0, y: maxUsedY, w: W, h: H - maxUsedY });
+ pl[0].free = freeSpaces;
+
  return pl;
 }
 
@@ -222,7 +254,7 @@ function go(){
  });
  if(bad.length){out.innerHTML='<div class="err">No entran en la placa: '+bad.join(", ")+'. Revisá esas medidas.</div>';return}
  if(!ps.length){out.innerHTML='<div class="err">Agregá al menos una pieza con cantidad y medidas.</div>';return}
- out.innerHTML='<div class="sum">Calculando la mejor distribución compacta…</div>';
+ out.innerHTML='<div class="sum">Calculando la distribución compacta…</div>';
  setTimeout(function(){
   var r=solve(ps,W+K,H+K,rot);
   if(!r){out.innerHTML='<div class="err">No se pudo armar un plan. Revisá las medidas.</div>';return}
