@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Calculador de corte de placas</title>
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--tx:#1d2b2a;--mu:#6b7775;--ac:#0f6e56;--ac2:#e1f5ee;--bd:#d9d7cf;--er:#a32d2d;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161a19;--card:#212726;--tx:#e8eeec;--mu:#9aa8a5;--ac:#5dcaa5;--ac2:#10332b;--bd:#37403e;--er:#f09595}}
+:root[data-theme="dark"]{--bg:#161a19;--card:#212726;--tx:#e8eeec;--mu:#9aa8a5;--ac:#5dcaa5;--ac2:#10332b;--bd:#37403e;--er:#f09595}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;padding:16px;max-width:560px;margin-inline:auto}
+h1{font-size:21px;margin:4px 0 14px;font-weight:600}
+h2{font-size:16px;margin:0 0 10px;font-weight:600}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px;margin-bottom:14px}
+.g{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+label{font-size:13px;color:var(--mu);display:block}
+input[type=number]{width:100%;font:inherit;padding:9px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx)}
+.row{display:grid;grid-template-columns:.7fr 1fr 1fr 40px;gap:8px;margin-bottom:8px;align-items:end}
+.row button{height:40px}
+button{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:6px;padding:9px 12px}
+button.p{background:var(--ac);color:#fff;border-color:var(--ac);font-weight:600;width:100%;padding:13px}
+:root[data-theme="dark"] button.p,:root:not([data-theme="light"]) button.p{color:#04342c}
+@media(prefers-color-scheme:light){button.p{color:#fff}}
+.chk{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:15px;color:var(--tx)}
+.sum{background:var(--ac2);border-radius:8px;padding:12px;font-size:15px}
+.sum b{font-size:26px;display:block;line-height:1.2}
+.err{color:var(--er);font-size:14px;margin:8px 0}
+svg{width:100%;height:auto;display:block;border:1px solid var(--bd);border-radius:4px;background:var(--bg)}
+.pt{font-size:13px;color:var(--mu);margin:4px 0 12px}
+.acts{display:flex;gap:8px;margin-top:10px}.acts button{flex:1}
+</style></head><body>
+<h1>Calculador de corte de placas</h1>
+<div class="card"><h2>Placa</h2>
+<div class="g">
+<div><label>Largo (cm)</label><input type="number" id="pw" value="200" inputmode="decimal"></div>
+<div><label>Ancho (cm)</label><input type="number" id="ph" value="100" inputmode="decimal"></div>
+<div><label>Corte de sierra (cm)</label><input type="number" id="kf" value="0" step="0.1" inputmode="decimal"></div>
+</div>
+<div class="g" style="margin-top:10px"><div><label>Repetir todo ×</label><input type="number" id="mul" value="1" min="1" inputmode="numeric"></div></div>
+<label class="chk"><input type="checkbox" id="rot" checked> Permitir girar piezas</label>
+</div>
+<div class="card"><h2>Piezas</h2>
+<div id="list"></div>
+<div class="acts"><button id="add">+ Agregar pieza</button><button id="clr">Vaciar lista</button></div>
+</div>
+<button class="p" id="go">Calcular</button>
+<div id="out" style="margin-top:14px"></div>
+<script>
+var DEF=[[3,82,98],[1,110,82],[3,82,35],[1,111,35],[1,110,35],[3,82,25],[1,128,25],[1,110,25],[1,81,27],[1,98,18],[1,65,27],[1,82,18]];
+var items=DEF.map(function(a){return a.slice()});
+try{var s=localStorage.getItem("cp_items");if(s){var p=JSON.parse(s);if(Array.isArray(p)&&p.length)items=p}}catch(e){}
+var $=function(i){return document.getElementById(i)};
+function save(){try{localStorage.setItem("cp_items",JSON.stringify(items))}catch(e){}}
+function render(){
+ var h="";
+ items.forEach(function(it,i){
+  h+='<div class="row"><div>'+(i==0?'<label>Cant.</label>':'')+'<input type="number" inputmode="numeric" data-i="'+i+'" data-k="0" value="'+it[0]+'"></div>'+
+  '<div>'+(i==0?'<label>Largo</label>':'')+'<input type="number" inputmode="decimal" data-i="'+i+'" data-k="1" value="'+it[1]+'"></div>'+
+  '<div>'+(i==0?'<label>Ancho</label>':'')+'<input type="number" inputmode="decimal" data-i="'+i+'" data-k="2" value="'+it[2]+'"></div>'+
+  '<button data-d="'+i+'" aria-label="Borrar pieza">×</button></div>';
+ });
+ $("list").innerHTML=h;
+}
+$("list").addEventListener("input",function(e){var t=e.target;if(t.dataset.i!==undefined){items[+t.dataset.i][+t.dataset.k]=parseFloat(t.value)||0;save()}});
+$("list").addEventListener("click",function(e){var d=e.target.dataset.d;if(d!==undefined){items.splice(+d,1);save();render()}});
+$("add").onclick=function(){items.push([1,0,0]);save();render()};
+$("clr").onclick=function(){items=[];save();render()};
+function pack(ps,W,H,rot){
+ var pl=[];
+ for(var n=0;n<ps.length;n++){
+  var p=ps[n],best=null;
+  for(var a=0;a<pl.length;a++){var fr=pl[a].free;
+   for(var b=0;b<fr.length;b++){var f=fr[b];
+    for(var r=0;r<(rot?2:1);r++){
+     var w=r?p.h:p.w,h=r?p.w:p.h;
+     if(w<=f.w+1e-9&&h<=f.h+1e-9){var sc=Math.min(f.w-w,f.h-h)*1e4+Math.max(f.w-w,f.h-h);
+      if(!best||sc<best.sc)best={sc:sc,a:a,b:b,w:w,h:h,r:r}}}}}
+  if(!best){
+   var okr=null;
+   for(var r2=0;r2<(rot?2:1);r2++){var w2=r2?p.h:p.w,h2=r2?p.w:p.h;if(w2<=W&&h2<=H){okr={w:w2,h:h2,r:r2};break}}
+   if(!okr)return null;
+   pl.push({free:[{x:0,y:0,w:W,h:H}],put:[]});
+   best={a:pl.length-1,b:0,w:okr.w,h:okr.h,r:okr.r};
+  }
+  var P=pl[best.a],f2=P.free.splice(best.b,1)[0];
+  P.put.push({x:f2.x,y:f2.y,w:best.w,h:best.h,p:p});
+  var rw=f2.w-best.w,rh=f2.h-best.h,A,B;
+  if(rw<rh){A={x:f2.x+best.w,y:f2.y,w:rw,h:best.h};B={x:f2.x,y:f2.y+best.h,w:f2.w,h:rh}}
+  else{A={x:f2.x+best.w,y:f2.y,w:rw,h:f2.h};B={x:f2.x,y:f2.y+best.h,w:best.w,h:rh}}
+  if(A.w>0.01&&A.h>0.01)P.free.push(A);
+  if(B.w>0.01&&B.h>0.01)P.free.push(B);
+ }
+ return pl;
+}
+function solve(ps,W,H,rot){
+ var keys=[function(p){return p.w*p.h},function(p){return Math.max(p.w,p.h)},function(p){return p.h},function(p){return p.w},function(p){return p.w+p.h}];
+ var best=null,t0=Date.now();
+ function tryit(arr){var r=pack(arr,W,H,rot);if(r&&(!best||r.length<best.length))best=r}
+ keys.forEach(function(k){tryit(ps.slice().sort(function(a,b){return k(b)-k(a)}))});
+ var it=0;
+ while(Date.now()-t0<1500&&it<4000){
+  var k=keys[it%keys.length],nz=0.15+Math.random()*0.5;
+  var arr=ps.map(function(p){return{p:p,v:k(p)*(1+(Math.random()-.5)*nz)}}).sort(function(a,b){return b.v-a.v}).map(function(o){return o.p});
+  tryit(arr);it++;
+ }
+ return best;
+}
+function col(p){var h=(p.w*7+p.h*13)%360;return"hsl("+h+",55%,62%)"}
+function go(){
+ var W=parseFloat($("pw").value),H=parseFloat($("ph").value),K=parseFloat($("kf").value)||0,M=Math.max(1,parseInt($("mul").value)||1),rot=$("rot").checked;
+ var out=$("out");
+ if(!(W>0&&H>0)){out.innerHTML='<div class="err">Ingresá el largo y el ancho de la placa.</div>';return}
+ var ps=[],area=0,bad=[];
+ items.forEach(function(it){
+  var q=Math.round(it[0]),w=it[1],h=it[2];
+  if(!(q>0&&w>0&&h>0))return;
+  var fits=(w<=W&&h<=H)||(rot&&h<=W&&w<=H);
+  if(!fits){bad.push(w+"×"+h);return}
+  for(var i=0;i<q*M;i++){ps.push({w:w+K,h:h+K,ow:w,oh:h});area+=w*h}
+ });
+ if(bad.length){out.innerHTML='<div class="err">No entran en la placa: '+bad.join(", ")+'. Revisá esas medidas.</div>';return}
+ if(!ps.length){out.innerHTML='<div class="err">Agregá al menos una pieza con cantidad y medidas.</div>';return}
+ out.innerHTML='<div class="sum">Calculando…</div>';
+ setTimeout(function(){
+  var r=solve(ps,W+K,H+K,rot);
+  if(!r){out.innerHTML='<div class="err">No se pudo armar un plan. Revisá las medidas.</div>';return}
+  var tot=r.length,pa=W*H;
+  var lo=Math.ceil(area/pa-1e-9);
+  var h='<div class="sum"><b>'+tot+' placa'+(tot>1?'s':'')+'</b>'+ps.length+' piezas · aprovechamiento '+Math.round(area/(tot*pa)*100)+'%<br>Mínimo teórico: '+lo+' placa'+(lo>1?'s':'')+'</div><div style="height:12px"></div>';
+  r.forEach(function(P,i){
+   var used=0;P.put.forEach(function(q){used+=q.p.ow*q.p.oh});
+   var fs=Math.max(W,H)/32;
+   h+='<h2>Placa '+(i+1)+'</h2><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Plano de corte placa '+(i+1)+'"><rect x="0" y="0" width="'+W+'" height="'+H+'" fill="none" stroke="#888" stroke-dasharray="4 3" stroke-width="0.6"/>';
+   P.put.forEach(function(q){
+    var w=q.w-K,hh=q.h-K,lab=(q.r?q.p.oh:q.p.ow)+"×"+(q.r?q.p.ow:q.p.oh);
+    var f=Math.min(fs,w/(lab.length*0.62),hh*0.6);
+    h+='<rect x="'+q.x+'" y="'+q.y+'" width="'+w+'" height="'+hh+'" fill="'+col(q.p)+'" stroke="#222" stroke-width="0.4"/>';
+    if(f>=W/90)h+='<text x="'+(q.x+w/2)+'" y="'+(q.y+hh/2)+'" font-size="'+f+'" text-anchor="middle" dominant-baseline="central" fill="#111" font-family="system-ui,sans-serif">'+lab+'</text>';
+   });
+   h+='</svg><div class="pt">'+P.put.length+' piezas · uso '+Math.round(used/pa*100)+'%</div>';
+  });
+  out.innerHTML=h;
+ },30);
+}
+$("go").onclick=go;
+render();
+</script></body></html>
