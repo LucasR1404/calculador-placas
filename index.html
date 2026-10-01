@@ -168,7 +168,7 @@ function pack(ps,W,H,rot){
      var w=r?p.h:p.w,h=r?p.w:p.h;
      if(w<=f.w+1e-9&&h<=f.h+1e-9){
       var remW = f.w - w, remH = f.h - h;
-      var sc = Math.min(remW, remH) * 1e4 + Math.max(remW, remH);
+      var sc = Math.min(remW, remH) * 100 + Math.max(remW, remH);
       if(!best||sc<best.sc)best={sc:sc,a:a,b:b,w:w,h:h,r:r}
      }
     }
@@ -185,7 +185,7 @@ function pack(ps,W,H,rot){
   P.put.push({x:f2.x,y:f2.y,w:best.w,h:best.h,p:p});
   var rw=f2.w-best.w,rh=f2.h-best.h,A,B;
   if(rw<rh){A={x:f2.x+best.w,y:f2.y,w:rw,h:best.h};B={x:f2.x,y:f2.y+best.h,w:f2.w,h:rh}}
-  else{A={x:f2.x+best.w,y:f2.y,w:rw,h:f2.h};B={x:f2.x,y:f2.y+best.h,w:best.w,h:rh}}
+  else{A={x:f2.x+best.w,y:f2.y,w:rw,h:best.h};B={x:f2.x,y:f2.y+best.h,w:best.w,h:rh}}
   if(A.w>0.01&&A.h>0.01)P.free.push(A);
   if(B.w>0.01&&B.h>0.01)P.free.push(B);
  }
@@ -222,7 +222,7 @@ function go(){
  });
  if(bad.length){out.innerHTML='<div class="err">No entran en la placa: '+bad.join(", ")+'. Revisá esas medidas.</div>';return}
  if(!ps.length){out.innerHTML='<div class="err">Agregá al menos una pieza con cantidad y medidas.</div>';return}
- out.innerHTML='<div class="sum">Calculando la mejor distribución de sobrantes…</div>';
+ out.innerHTML='<div class="sum">Calculando la mejor distribución compacta…</div>';
  setTimeout(function(){
   var r=solve(ps,W+K,H+K,rot);
   if(!r){out.innerHTML='<div class="err">No se pudo armar un plan. Revisá las medidas.</div>';return}
@@ -259,4 +259,3 @@ function go(){
 $("go").onclick=go;
 render();
 </script></body></html>
-
