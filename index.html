@@ -17,7 +17,7 @@ label{font-size:13px;color:var(--mu);display:block}
 input[type=number]{width:100%;font:inherit;padding:9px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx)}
 .row{display:grid;grid-template-columns:.7fr 1fr 1fr 40px;gap:8px;margin-bottom:8px;align-items:end}
 .row button{height:40px}
-button{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:6px;padding:9px 12px}
+button{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:6px;padding:9px 12px;cursor:pointer}
 button.p{background:var(--ac);color:#fff;border-color:var(--ac);font-weight:600;width:100%;padding:13px}
 :root[data-theme="dark"] button.p,:root:not([data-theme="light"]) button.p{color:#04342c}
 @media(prefers-color-scheme:light){button.p{color:#fff}}
@@ -28,8 +28,25 @@ button.p{background:var(--ac);color:#fff;border-color:var(--ac);font-weight:600;
 svg{width:100%;height:auto;display:block;border:1px solid var(--bd);border-radius:4px;background:var(--bg)}
 .pt{font-size:13px;color:var(--mu);margin:4px 0 12px}
 .acts{display:flex;gap:8px;margin-top:10px}.acts button{flex:1}
+.top-acts{display:flex;gap:8px;margin-bottom:14px}
+.top-acts button{flex:1;font-size:13px;padding:7px}
+.remnant-tag{background:var(--bg);border:1px dashed var(--bd);padding:6px 10px;border-radius:6px;font-size:12px;margin-top:6px;color:var(--mu)}
+@media print {
+  body { background: #fff; color: #000; max-width: 100%; padding: 0; }
+  .card, .top-acts, button, .acts, h1 { display: none !important; }
+  #out { margin: 0; }
+  svg { border: 1px solid #000; page-break-inside: avoid; }
+}
 </style></head><body>
 <h1>Calculador de corte de placas</h1>
+
+<div class="top-acts">
+  <button id="btn-export">Exportar JSON</button>
+  <button id="btn-import">Importar JSON</button>
+  <button id="btn-print">🖨 Imprimir Planos</button>
+  <input type="file" id="file-picker" accept=".json" style="display:none">
+</div>
+
 <div class="card"><h2>Placa</h2>
 <div class="g">
 <div><label>Largo (cm)</label><input type="number" id="pw" value="200" inputmode="decimal"></div>
@@ -39,18 +56,48 @@ svg{width:100%;height:auto;display:block;border:1px solid var(--bd);border-radiu
 <div class="g" style="margin-top:10px"><div><label>Repetir todo ×</label><input type="number" id="mul" value="1" min="1" inputmode="numeric"></div></div>
 <label class="chk"><input type="checkbox" id="rot" checked> Permitir girar piezas</label>
 </div>
+
 <div class="card"><h2>Piezas</h2>
 <div id="list"></div>
 <div class="acts"><button id="add">+ Agregar pieza</button><button id="clr">Vaciar lista</button></div>
 </div>
+
 <button class="p" id="go">Calcular</button>
 <div id="out" style="margin-top:14px"></div>
+
 <script>
 var DEF=[[3,82,98],[1,110,82],[3,82,35],[1,111,35],[1,110,35],[3,82,25],[1,128,25],[1,110,25],[1,81,27],[1,98,18],[1,65,27],[1,82,18]];
 var items=DEF.map(function(a){return a.slice()});
-try{var s=localStorage.getItem("cp_items");if(s){var p=JSON.parse(s);if(Array.isArray(p)&&p.length)items=p}}catch(e){}
+
+try {
+  var savedConfig = localStorage.getItem("cp_config");
+  if (savedConfig) {
+    var cfg = JSON.parse(savedConfig);
+    if (cfg.pw) $("pw").value = cfg.pw;
+    if (cfg.ph) $("ph").value = cfg.ph;
+    if (cfg.kf) $("kf").value = cfg.kf;
+    if (cfg.mul) $("mul").value = cfg.mul;
+    if (cfg.rot !== undefined) $("rot").checked = cfg.rot;
+  }
+  var s = localStorage.getItem("cp_items");
+  if (s) { var p = JSON.parse(s); if (Array.isArray(p) && p.length) items = p; }
+} catch(e) {}
+
 var $=function(i){return document.getElementById(i)};
-function save(){try{localStorage.setItem("cp_items",JSON.stringify(items))}catch(e){}}
+
+function save(){
+  try {
+    localStorage.setItem("cp_items", JSON.stringify(items));
+    localStorage.setItem("cp_config", JSON.stringify({
+      pw: $("pw").value,
+      ph: $("ph").value,
+      kf: $("kf").value,
+      mul: $("mul").value,
+      rot: $("rot").checked
+    }));
+  } catch(e) {}
+}
+
 function render(){
  var h="";
  items.forEach(function(it,i){
@@ -61,10 +108,56 @@ function render(){
  });
  $("list").innerHTML=h;
 }
+
+["pw", "ph", "kf", "mul", "rot"].forEach(function(id){
+  $(id).addEventListener("input", save);
+  $(id).addEventListener("change", save);
+});
+
 $("list").addEventListener("input",function(e){var t=e.target;if(t.dataset.i!==undefined){items[+t.dataset.i][+t.dataset.k]=parseFloat(t.value)||0;save()}});
 $("list").addEventListener("click",function(e){var d=e.target.dataset.d;if(d!==undefined){items.splice(+d,1);save();render()}});
 $("add").onclick=function(){items.push([1,0,0]);save();render()};
 $("clr").onclick=function(){items=[];save();render()};
+
+$("btn-export").onclick = function() {
+  var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+    config: { pw: $("pw").value, ph: $("ph").value, kf: $("kf").value, mul: $("mul").value, rot: $("rot").checked },
+    items: items
+  }));
+  var dlAnchorElem = document.createElement('a');
+  dlAnchorElem.setAttribute("href", dataStr);
+  dlAnchorElem.setAttribute("download", "corte_placas_proyecto.json");
+  dlAnchorElem.click();
+};
+
+$("btn-import").onclick = function() { $("file-picker").click(); };
+$("file-picker").onchange = function(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(evt) {
+    try {
+      var data = JSON.parse(evt.target.result);
+      if (data.items) items = data.items;
+      if (data.config) {
+        if (data.config.pw) $("pw").value = data.config.pw;
+        if (data.config.ph) $("ph").value = data.config.ph;
+        if (data.config.kf) $("kf").value = data.config.kf;
+        if (data.config.mul) $("mul").value = data.config.mul;
+        if (data.config.rot !== undefined) $("rot").checked = data.config.rot;
+      }
+      save();
+      render();
+      alert("¡Proyecto importado con éxito!");
+    } catch(err) {
+      alert("El archivo no es válido.");
+    }
+  };
+  reader.readAsText(file);
+};
+
+$("btn-print").onclick = function() { window.print(); };
+
 function pack(ps,W,H,rot){
  var pl=[];
  for(var n=0;n<ps.length;n++){
@@ -73,8 +166,14 @@ function pack(ps,W,H,rot){
    for(var b=0;b<fr.length;b++){var f=fr[b];
     for(var r=0;r<(rot?2:1);r++){
      var w=r?p.h:p.w,h=r?p.w:p.h;
-     if(w<=f.w+1e-9&&h<=f.h+1e-9){var sc=Math.min(f.w-w,f.h-h)*1e4+Math.max(f.w-w,f.h-h);
-      if(!best||sc<best.sc)best={sc:sc,a:a,b:b,w:w,h:h,r:r}}}}}
+     if(w<=f.w+1e-9&&h<=f.h+1e-9){
+      var remW = f.w - w, remH = f.h - h;
+      var sc = Math.min(remW, remH) * 1e4 + Math.max(remW, remH);
+      if(!best||sc<best.sc)best={sc:sc,a:a,b:b,w:w,h:h,r:r}
+     }
+    }
+   }
+  }
   if(!best){
    var okr=null;
    for(var r2=0;r2<(rot?2:1);r2++){var w2=r2?p.h:p.w,h2=r2?p.w:p.h;if(w2<=W&&h2<=H){okr={w:w2,h:h2,r:r2};break}}
@@ -92,6 +191,7 @@ function pack(ps,W,H,rot){
  }
  return pl;
 }
+
 function solve(ps,W,H,rot){
  var keys=[function(p){return p.w*p.h},function(p){return Math.max(p.w,p.h)},function(p){return p.h},function(p){return p.w},function(p){return p.w+p.h}];
  var best=null,t0=Date.now();
@@ -105,7 +205,9 @@ function solve(ps,W,H,rot){
  }
  return best;
 }
+
 function col(p){var h=(p.w*7+p.h*13)%360;return"hsl("+h+",55%,62%)"}
+
 function go(){
  var W=parseFloat($("pw").value),H=parseFloat($("ph").value),K=parseFloat($("kf").value)||0,M=Math.max(1,parseInt($("mul").value)||1),rot=$("rot").checked;
  var out=$("out");
@@ -120,16 +222,18 @@ function go(){
  });
  if(bad.length){out.innerHTML='<div class="err">No entran en la placa: '+bad.join(", ")+'. Revisá esas medidas.</div>';return}
  if(!ps.length){out.innerHTML='<div class="err">Agregá al menos una pieza con cantidad y medidas.</div>';return}
- out.innerHTML='<div class="sum">Calculando…</div>';
+ out.innerHTML='<div class="sum">Calculando la mejor distribución de sobrantes…</div>';
  setTimeout(function(){
   var r=solve(ps,W+K,H+K,rot);
   if(!r){out.innerHTML='<div class="err">No se pudo armar un plan. Revisá las medidas.</div>';return}
   var tot=r.length,pa=W*H;
   var lo=Math.ceil(area/pa-1e-9);
   var h='<div class="sum"><b>'+tot+' placa'+(tot>1?'s':'')+'</b>'+ps.length+' piezas · aprovechamiento '+Math.round(area/(tot*pa)*100)+'%<br>Mínimo teórico: '+lo+' placa'+(lo>1?'s':'')+'</div><div style="height:12px"></div>';
+  
   r.forEach(function(P,i){
    var used=0;P.put.forEach(function(q){used+=q.p.ow*q.p.oh});
    var fs=Math.max(W,H)/32;
+   
    h+='<h2>Placa '+(i+1)+'</h2><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Plano de corte placa '+(i+1)+'"><rect x="0" y="0" width="'+W+'" height="'+H+'" fill="none" stroke="#888" stroke-dasharray="4 3" stroke-width="0.6"/>';
    P.put.forEach(function(q){
     var w=q.w-K,hh=q.h-K,lab=(q.r?q.p.oh:q.p.ow)+"×"+(q.r?q.p.ow:q.p.oh);
@@ -138,10 +242,21 @@ function go(){
     if(f>=W/90)h+='<text x="'+(q.x+w/2)+'" y="'+(q.y+hh/2)+'" font-size="'+f+'" text-anchor="middle" dominant-baseline="central" fill="#111" font-family="system-ui,sans-serif">'+lab+'</text>';
    });
    h+='</svg><div class="pt">'+P.put.length+' piezas · uso '+Math.round(used/pa*100)+'%</div>';
+   
+   var validRemnants = P.free.filter(function(f){ return f.w >= 10 && f.h >= 10; });
+   if(validRemnants.length > 0){
+    h+='<div class="remnant-tag"><b>Sobrantes útiles / Retazos rescatables:</b><br>';
+    validRemnants.forEach(function(rem){
+     h+='• Rectángulo de <b>'+Math.round(rem.w*10)/10+' × '+Math.round(rem.h*10)/10+' cm</b><br>';
+    });
+    h+='</div>';
+   }
   });
   out.innerHTML=h;
  },30);
 }
+
 $("go").onclick=go;
 render();
 </script></body></html>
+
