@@ -51,7 +51,7 @@ svg{width:100%;height:auto;display:block;border:1px solid var(--bd);border-radiu
 <div class="g">
 <div><label>Largo (cm)</label><input type="number" id="pw" value="200" inputmode="decimal"></div>
 <div><label>Ancho (cm)</label><input type="number" id="ph" value="100" inputmode="decimal"></div>
-<div><label>Corte de sierra (cm)</label><input type="number" id="kf" value="0" step="0.1" inputmode="decimal"></div>
+<div><label>Espesor / Altura (cm)</label><input type="number" id="kf" value="8" step="0.1" inputmode="decimal"></div>
 </div>
 <div class="g" style="margin-top:10px"><div><label>Repetir todo ×</label><input type="number" id="mul" value="1" min="1" inputmode="numeric"></div></div>
 <label class="chk"><input type="checkbox" id="rot" checked> Permitir girar piezas</label>
@@ -165,7 +165,6 @@ function pack(ps, W, H, rot) {
  for (var n = 0; n < sortedPs.length; n++) {
   var p = sortedPs[n], placed = false;
 
-  // 1. Intentar ubicar en los espacios libres acumulados de CUALQUIER placa ya abierta (incluyendo retazos anteriores)
   for (var a = 0; a < plates.length; a++) {
    var fr = plates[a].free;
    for (var b = 0; b < fr.length; b++) {
@@ -176,7 +175,6 @@ function pack(ps, W, H, rot) {
       plates[a].put.push({ x: f.x, y: f.y, w: w, h: h, p: p, r: r, isRemnant: plates[a].isRemnant || a > 0 });
       plates[a].free.splice(b, 1);
 
-      // Partición de retazos restantes
       var rw = f.w - w, rh = f.h - h;
       if (rw > 0.01) plates[a].free.push({ x: f.x + w, y: f.y, w: rw, h: f.h });
       if (rh > 0.01) plates[a].free.push({ x: f.x, y: f.y + h, w: f.w, h: rh });
@@ -190,7 +188,6 @@ function pack(ps, W, H, rot) {
    if (placed) break;
   }
 
-  // 2. Si no entra en ninguna placa ni retazo existente, abrir una placa nueva entera
   if (!placed) {
    var okr = null;
    for (var r2 = 0; r2 < (rot ? 2 : 1); r2++) {
@@ -230,7 +227,7 @@ function solve(ps,W,H,rot){
 function col(p){var h=(p.w*7+p.h*13)%360;return"hsl("+h+",55%,62%)"}
 
 function go(){
- var W=parseFloat($("pw").value),H=parseFloat($("ph").value),K=parseFloat($("kf").value)||0,M=Math.max(1,parseInt($("mul").value)||1),rot=$("rot").checked;
+ var W=parseFloat($("pw").value),H=parseFloat($("ph").value),TH=parseFloat($("kf").value)||0,M=Math.max(1,parseInt($("mul").value)||1),rot=$("rot").checked;
  var out=$("out");
  if(!(W>0&&H>0)){out.innerHTML='<div class="err">Ingresá el largo y el ancho de la placa.</div>';return}
  var ps=[],area=0,bad=[];
@@ -239,17 +236,17 @@ function go(){
   if(!(q>0&&w>0&&h>0))return;
   var fits=(w<=W&&h<=H)||(rot&&h<=W&&w<=H);
   if(!fits){bad.push(w+"×"+h);return}
-  for(var i=0;i<q*M;i++){ps.push({w:w+K,h:h+K,ow:w,oh:h});area+=w*h}
+  for(var i=0;i<q*M;i++){ps.push({w:w,h:h,ow:w,oh:h});area+=w*h}
  });
  if(bad.length){out.innerHTML='<div class="err">No entran en la placa: '+bad.join(", ")+'. Revisá esas medidas.</div>';return}
  if(!ps.length){out.innerHTML='<div class="err">Agregá al menos una pieza con cantidad y medidas.</div>';return}
- out.innerHTML='<div class="sum">Calculando aprovechamiento con retazos…</div>';
+ out.innerHTML='<div class="sum">Calculando distribución con retazos…</div>';
  setTimeout(function(){
-  var r=solve(ps,W+K,H+K,rot);
+  var r=solve(ps,W,H,rot);
   if(!r){out.innerHTML='<div class="err">No se pudo armar un plan. Revisá las medidas.</div>';return}
   var tot=r.length,pa=W*H;
   var lo=Math.ceil(area/pa-1e-9);
-  var h='<div class="sum"><b>'+tot+' placa'+(tot>1?'s':'')+'</b>'+ps.length+' piezas · aprovechamiento '+Math.round(area/(tot*pa)*100)+'%<br>Mínimo teórico: '+lo+' placa'+(lo>1?'s':'')+'</div><div style="height:12px"></div>';
+  var h='<div class="sum"><b>'+tot+' placa'+(tot>1?'s':'')+'</b>'+ps.length+' piezas · aprovechamiento '+Math.round(area/(tot*pa)*100)+'%<br>Mínimo teórico: '+lo+' placa'+(lo>1?'s':'')+' (Espesor: '+TH+' cm)</div><div style="height:12px"></div>';
   
   r.forEach(function(P,i){
    var used=0;P.put.forEach(function(q){used+=q.p.ow*q.p.oh});
@@ -257,7 +254,7 @@ function go(){
    
    h+='<h2>Placa '+(i+1)+'</h2><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Plano de corte placa '+(i+1)+'"><rect x="0" y="0" width="'+W+'" height="'+H+'" fill="none" stroke="#888" stroke-dasharray="4 3" stroke-width="0.6"/>';
    P.put.forEach(function(q){
-    var w=q.w-K,hh=q.h-K,lab=(q.r?q.p.oh:q.p.ow)+"×"+(q.r?q.p.ow:q.p.oh);
+    var w=q.w,hh=q.h,lab=(q.r?q.p.oh:q.p.ow)+"×"+(q.r?q.p.ow:q.p.oh);
     var f=Math.min(fs,w/(lab.length*0.62),hh*0.6);
     h+='<rect x="'+q.x+'" y="'+q.y+'" width="'+w+'" height="'+hh+'" fill="'+col(q.p)+'" stroke="#222" stroke-width="0.4"/>';
     if(f>=W/90)h+='<text x="'+(q.x+w/2)+'" y="'+(q.y+hh/2)+'" font-size="'+f+'" text-anchor="middle" dominant-baseline="central" fill="#111" font-family="system-ui,sans-serif">'+lab+'</text>';
